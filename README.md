@@ -79,32 +79,26 @@ pip install pandas requests matplotlib seaborn numpy scikit-learn
 
 ```
 bitcoin-powerbi-analysis/
-├── data/
-│   ├── raw/                    # Raw API responses
-│   ├── processed/              # Cleaned and transformed data
-│   └── exports/                # CSV exports for Power BI
-├── scripts/
-│   ├── data_ingestion.py       # API data collection
-│   ├── data_preprocessing.py   # Data cleaning and transformation
-│   ├── time_series_analysis.py # Advanced analytics functions
-│   └── config.py              # Configuration and API keys
-├── powerbi/
-│   ├── bitcoin_dashboard.pbix  # Main Power BI file
-│   ├── data_models/           # Power BI data models
-│   └── python_scripts/        # Embedded Python code
-├── documentation/
-│   ├── api_documentation.md   # API integration guide
-│   ├── dashboard_guide.md     # Dashboard usage instructions
-│   └── troubleshooting.md     # Common issues and solutions
-└── README.md
+├── README.md                           # Project documentation
+├── .gitignore.txt                      # Git ignore patterns
+├── docker-compose.yml                  # Container orchestration
+├── Real-Time_Bitcoin_Dashboard_using_PowerBI.pbix  # Main Power BI dashboard
+├── bitcoin_data_ingestion.py          # Core API data collection script
+├── bitcoin_example.py                  # Basic implementation example
+├── bitcoin_example-checkpoint.ipynb   # Jupyter notebook checkpoint
+├── bitcoin_utils.py                   # Utility functions and helpers
+├── push_to_powerbi.py                 # Power BI streaming integration
+├── bitcoin_price_data.csv             # Raw Bitcoin price dataset
+├── bitcoin_price_transformed_full.csv # Processed and cleaned dataset
+└── forecast_prophet.csv               # Prophet model predictions
 ```
 
-## ***Implementation Guide***
+## ***🔧 Implementation Guide***
 
 ### ***Step 1: API Data Ingestion Setup***
 
 ```py
-# data_ingestion.py
+# bitcoin_data_ingestion.py
 import requests
 import pandas as pd
 import json
@@ -143,15 +137,15 @@ class BitcoinDataCollector:
         return response.json()
 ```
 
-### ***Step 2: Data Preprocessing Pipeline***
+### ***Step 2: Utility Functions and Data Processing***
 
 ```py
-# data_preprocessing.py
+# bitcoin_utils.py
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-class DataPreprocessor:
+class BitcoinAnalytics:
     def __init__(self):
         self.processed_data = None
         
@@ -181,11 +175,11 @@ class DataPreprocessor:
         
         return df
     
-    def export_for_powerbi(self, df, filename='bitcoin_data.csv'):
+    def export_transformed_data(self, df, filename='bitcoin_price_transformed_full.csv'):
         """Export processed data in Power BI compatible format"""
         export_df = df.copy()
         export_df['timestamp'] = export_df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        export_df.to_csv(f'data/processed/{filename}', index=False)
+        export_df.to_csv(filename, index=False)
         return export_df
 ```
 
@@ -194,37 +188,49 @@ class DataPreprocessor:
 #### ***Data Connection Setup***
 
 1. ***Open Power BI Desktop***  
-2. ***Get Data** → **Text/CSV** → Select processed Bitcoin data file*  
+2. ***Get Data** → **Text/CSV** → Select processed Bitcoin data files:*  
+   * *`bitcoin_price_data.csv` (raw historical data)*  
+   * *`bitcoin_price_transformed_full.csv` (processed with indicators)*  
+   * *`forecast_prophet.csv` (Prophet model predictions)*  
 3. ***Transform Data** in Power Query Editor*  
 4. ***Configure Data Types** and relationships*
 
-#### ***Python Integration for Advanced Analytics***
+#### ***Power BI Integration for Advanced Analytics***
 
 ```py
-# Embedded Python script in Power BI
+# Code embedded in Real-Time_Bitcoin_Dashboard_using_PowerBI.pbix
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from fbprophet import Prophet
 import matplotlib.pyplot as plt
 
-# Time series forecasting
-def forecast_price(df, days_ahead=7):
-    df_sorted = df.sort_values('timestamp')
-    df_sorted['day_num'] = range(len(df_sorted))
+# Prophet forecasting model for Bitcoin price prediction
+def create_prophet_forecast(df, periods=30):
+    """Generate Prophet-based price forecasts"""
+    # Prepare data for Prophet
+    prophet_df = df[['timestamp', 'price']].copy()
+    prophet_df.columns = ['ds', 'y']
     
-    X = df_sorted[['day_num']]
-    y = df_sorted['price']
+    # Create and fit Prophet model
+    model = Prophet(
+        daily_seasonality=True,
+        weekly_seasonality=True,
+        yearly_seasonality=True,
+        changepoint_prior_scale=0.05
+    )
+    model.fit(prophet_df)
     
-    model = LinearRegression()
-    model.fit(X, y)
+    # Generate future dates and forecast
+    future = model.make_future_dataframe(periods=periods)
+    forecast = model.predict(future)
     
-    future_days = np.array([[len(df_sorted) + i] for i in range(1, days_ahead + 1)])
-    forecast = model.predict(future_days)
+    # Export forecast data
+    forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv('forecast_prophet.csv', index=False)
     
     return forecast
 
-# Apply forecasting
-forecast_values = forecast_price(dataset)
+# Apply forecasting to dataset
+forecast_result = create_prophet_forecast(dataset)
 ```
 
 ### ***Step 4: Dashboard Creation***
@@ -248,13 +254,13 @@ forecast_values = forecast_price(dataset)
 ### ***Step 5: Real-Time Streaming Setup***
 
 ```py
-# streaming_setup.py
+# push_to_powerbi.py
 import requests
 import json
 import time
-from powerbi import PowerBIClient
+from bitcoin_data_ingestion import BitcoinDataCollector
 
-class RealTimeStreaming:
+class PowerBIStreaming:
     def __init__(self, stream_url):
         self.stream_url = stream_url
         
@@ -362,30 +368,36 @@ cd bitcoin-powerbi-analysis
    ***Install Dependencies***
 
 ```shell
-pip install -r requirements.txt
+pip install pandas requests matplotlib seaborn numpy scikit-learn fbprophet
 ```
 
 3.   
-   ***Configure API Keys***
-
-```shell
-cp config_template.py config.py
-# Edit config.py with your API keys
-```
-
-4.   
    ***Run Data Collection***
 
 ```shell
-python scripts/data_ingestion.py
+python bitcoin_data_ingestion.py
+```
+
+4.   
+   ***Process Data with Utilities***
+
+```shell
+python bitcoin_utils.py
 ```
 
 5.   
    ***Open Power BI Dashboard***
 
    * *Launch Power BI Desktop*  
-   * *Open `powerbi/bitcoin_dashboard.pbix`*  
+   * *Open `Real-Time_Bitcoin_Dashboard_using_PowerBI.pbix`*  
    * *Refresh data sources*
+
+### ***Docker Setup (Alternative)***
+
+```shell
+# Use Docker Compose for containerized deployment
+docker-compose up -d
+```
 
 ### ***Advanced Setup (30 minutes)***
 
@@ -542,7 +554,7 @@ def validate_data_quality(df):
 
 ***Star this repository if it helped you build better cryptocurrency analytics dashboards\!***
 
-***Connect with us**: [LinkedIn](https://www.linkedin.com/in/abhishek-rithik-origanti/) | [GitHub](https://github.com/abhioriganti) | [Website](https://abhioriganti.github.io/)*
+***🔗 Connect with us**: [LinkedIn](https://www.linkedin.com/in/abhishek-rithik-origanti/) | [GitHub](https://github.com/abhioriganti) | [Website](https://abhioriganti.github.io/)*
 
 ---
 
